@@ -33,6 +33,7 @@ class OrderRepository {
         'customer_id': customerId,
         'tailor_id': tailorId,
         'rider_id': null,
+        'drop_off_rider_id': null, // second leg rider (tailor -> customer) not assigned yet
         'status': -2,
         'total_price': totalPrice,
         'payment_method': paymentMethod,
@@ -58,7 +59,6 @@ class OrderRepository {
           'longitude': dropoffLocation.longitude,
         };
       }
-
 
       final batch = _firestore.batch();
 

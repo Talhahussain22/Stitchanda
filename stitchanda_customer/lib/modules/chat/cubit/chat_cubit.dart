@@ -102,6 +102,15 @@ class ChatCubit extends Cubit<ChatState> {
         'imageUrl': p.isNotEmpty ? p : null,
       };
     }
+    final admin = await _firestore.collection('admin').doc(uid).get();
+    if (admin.exists) {
+      final data = admin.data() as Map<String, dynamic>;
+      final p = (data['profile_image_path']?.toString() ?? '').trim();
+      return {
+        'name': (data['name']?.toString()),
+        'imageUrl': p.isNotEmpty ? p : null,
+      };
+    }
     return null;
   }
 

@@ -201,18 +201,3 @@ fvm flutter clean
 fvm flutter pub get
 ```
 
-## License
-
-[Add your license information here]
-
-## Contributing
-
-[Add contributing guidelines here]
-
-## Support
-
-For issues and questions, please open an issue in the GitHub repository.
-
----
-
-**Happy Coding!** 🚀

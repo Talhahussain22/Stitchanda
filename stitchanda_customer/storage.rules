@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Allow anyone to read customer profile images
+    match /customer_profiles/{imageId} {
+      allow read: if true;
+
+      // Only allow authenticated users to write/update/delete their own profile images
+      allow write: if request.auth != null;
+    }
+
+    // Deny all other paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

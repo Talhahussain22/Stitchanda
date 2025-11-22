@@ -53,11 +53,24 @@ class DriverOrderRepository {
 
   Future<List<OrderModel>> fetchDriverOrders(String riderId) async {
     final col = _firestore.collection('order');
-    final snapshot = await col
+    // First-leg assignments (statuses 1,2) by rider_id
+    final firstLegSnap = await col
         .where('rider_id', isEqualTo: riderId)
-        .where('status', whereIn: [1, 2, 7, 8])
+        .where('status', whereIn: [1, 2])
         .get();
-    final base = snapshot.docs.map((d)=>OrderModel.fromJson(d.data())).toList();
+    // Return-leg assignments (statuses 7,8) by drop_off_rider_id
+    final returnLegSnap = await col
+        .where('drop_off_rider_id', isEqualTo: riderId)
+        .where('status', whereIn: [7, 8])
+        .get();
+
+    final base = [
+      ...firstLegSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+      ...returnLegSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+    ];
+    // sort by updated_at if present
+    base.sort((a,b)=> b.updatedAt.compareTo(a.updatedAt));
+
     return Future.wait(base.map((o) async {
       final customerSnap = await _firestore.collection('customer').doc(o.customerId).get();
       DocumentSnapshot<Map<String, dynamic>>? tailorSnap;
@@ -76,26 +89,38 @@ class DriverOrderRepository {
 
   Stream<List<OrderModel>> streamDriverOrders(String riderId) {
     final col = _firestore.collection('order');
-    final query = col
+    final firstLegQuery = col
         .where('rider_id', isEqualTo: riderId)
-        .where('status', whereIn: [1, 2, 7, 8]);
+        .where('status', whereIn: [1, 2]);
 
-    return query.snapshots().asyncMap((snapshot) async {
-      final base = snapshot.docs.map((d)=>OrderModel.fromJson(d.data())).toList();
-      return Future.wait(base.map((o) async {
-        final customerSnap = await _firestore.collection('customer').doc(o.customerId).get();
-        DocumentSnapshot<Map<String, dynamic>>? tailorSnap;
-        if (o.tailorId != null && o.tailorId!.isNotEmpty) {
-          tailorSnap = await _firestore.collection('tailor').doc(o.tailorId!).get();
-        }
-        final customerInfo = (customerSnap.exists && customerSnap.data()!=null)
-            ? CustomerInfo.fromJson(customerSnap.data() as Map<String,dynamic>)
-            : null;
-        final tailorInfo = (tailorSnap!=null && tailorSnap.exists && tailorSnap.data()!=null)
-            ? TailorInfo.fromJson(tailorSnap.data() as Map<String,dynamic>)
-            : null;
-        return o.copyWith(customer: customerInfo, tailor: tailorInfo);
-      }));
+    final returnLegQuery = col
+        .where('drop_off_rider_id', isEqualTo: riderId)
+        .where('status', whereIn: [7, 8]);
+
+    // Merge two streams
+    return firstLegQuery.snapshots().asyncExpand((firstSnap) {
+      return returnLegQuery.snapshots().asyncMap((returnSnap) async {
+        final base = [
+          ...firstSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+          ...returnSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+        ];
+        // sort by updated_at string (serverTimestamp string) if comparable
+        base.sort((a,b)=> b.updatedAt.compareTo(a.updatedAt));
+        return Future.wait(base.map((o) async {
+          final customerSnap = await _firestore.collection('customer').doc(o.customerId).get();
+          DocumentSnapshot<Map<String, dynamic>>? tailorSnap;
+          if (o.tailorId != null && o.tailorId!.isNotEmpty) {
+            tailorSnap = await _firestore.collection('tailor').doc(o.tailorId!).get();
+          }
+          final customerInfo = (customerSnap.exists && customerSnap.data()!=null)
+              ? CustomerInfo.fromJson(customerSnap.data() as Map<String,dynamic>)
+              : null;
+          final tailorInfo = (tailorSnap!=null && tailorSnap.exists && tailorSnap.data()!=null)
+              ? TailorInfo.fromJson(tailorSnap.data() as Map<String,dynamic>)
+              : null;
+          return o.copyWith(customer: customerInfo, tailor: tailorInfo);
+        }));
+      });
     });
   }
 
@@ -138,24 +163,39 @@ class DriverOrderRepository {
           throw Exception('Order does not exist.');
         }
         final data = snapshot.data() as Map<String, dynamic>;
-        final int status = data['status'] as int;
+        final int status = (data['status'] as num).toInt();
         final dynamic rider = data['rider_id'];
+        final dynamic dropOffRider = data['drop_off_rider_id'];
 
-        final bool alreadyAssigned = rider != null && rider.toString().isNotEmpty && rider.toString() != 'null';
+        // For first leg (0-5), we assign rider_id when status becomes 1 or 2 path
+        // For return leg (6+), we assign drop_off_rider_id when status becomes 7 or 8 path
+        final bool isReturnLeg = status >= 6;
+        final bool alreadyAssignedFirst = rider != null && rider.toString().isNotEmpty && rider.toString() != 'null';
+        final bool alreadyAssignedReturn = dropOffRider != null && dropOffRider.toString().isNotEmpty && dropOffRider.toString() != 'null';
 
-        // Check if order is available for assignment (status 0 or 6)
-        if ((status != 0 && status != 6) || alreadyAssigned) {
-          throw Exception('Order already accepted by another driver.');
+        if (!isReturnLeg) {
+          // Expect status == 0 to accept
+          if (status != 0 || alreadyAssignedFirst) {
+            throw Exception('Order already accepted by another driver.');
+          }
+          final int newStatus = 1; // Assigned
+          transaction.update(orderRef, {
+            'rider_id': currentRiderId,
+            'status': newStatus,
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+        } else {
+          // Expect status == 6 to accept for return leg
+          if (status != 6 || alreadyAssignedReturn) {
+            throw Exception('Order already accepted by another driver.');
+          }
+          final int newStatus = 7; // Assigned to Rider for return leg
+          transaction.update(orderRef, {
+            'drop_off_rider_id': currentRiderId,
+            'status': newStatus,
+            'updated_at': FieldValue.serverTimestamp(),
+          });
         }
-
-        // Set status to 1 (Assigned) if it was 0, or 7 (Assigned to Rider) if it was 6
-        final int newStatus = (status == 0) ? 1 : 7;
-
-        transaction.update(orderRef, {
-          'rider_id': currentRiderId,
-          'status': newStatus,
-          'updated_at': FieldValue.serverTimestamp(),
-        });
       });
 
       await _firestore.collection('driver').doc(currentRiderId).update({
@@ -202,35 +242,54 @@ class DriverOrderRepository {
 
   Stream<List<OrderModel>> streamHistoryOrders(String riderId) {
     final col = _firestore.collection('order');
-    final query = col
+    // Completed legs for both directions
+    final firstLegQuery = col
         .where('rider_id', isEqualTo: riderId)
-        .where('status', whereIn: [3, 9])
-        .orderBy('updated_at', descending: true);
-    return query.snapshots().asyncMap((snapshot) async {
-      final base = snapshot.docs.map((d)=>OrderModel.fromJson(d.data())).toList();
-      return Future.wait(base.map((o) async {
-        final customerSnap = await _firestore.collection('customer').doc(o.customerId).get();
-        DocumentSnapshot<Map<String, dynamic>>? tailorSnap;
-        if (o.tailorId != null && o.tailorId!.isNotEmpty) {
-          tailorSnap = await _firestore.collection('tailor').doc(o.tailorId!).get();
-        }
-        final customerInfo = (customerSnap.exists && customerSnap.data()!=null)
-            ? CustomerInfo.fromJson(customerSnap.data() as Map<String,dynamic>)
-            : null;
-        final tailorInfo = (tailorSnap!=null && tailorSnap.exists && tailorSnap.data()!=null)
-            ? TailorInfo.fromJson(tailorSnap.data() as Map<String,dynamic>)
-            : null;
-        return o.copyWith(customer: customerInfo, tailor: tailorInfo);
-      }));
+        .where('status', whereIn: [3]);
+    final returnLegQuery = col
+        .where('drop_off_rider_id', isEqualTo: riderId)
+        .where('status', whereIn: [9]);
+
+    return firstLegQuery.snapshots().asyncExpand((firstSnap) {
+      return returnLegQuery.snapshots().asyncMap((returnSnap) async {
+        final base = [
+          ...firstSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+          ...returnSnap.docs.map((d)=>OrderModel.fromJson(d.data())),
+        ];
+        base.sort((a,b)=> b.updatedAt.compareTo(a.updatedAt));
+        return Future.wait(base.map((o) async {
+          final customerSnap = await _firestore.collection('customer').doc(o.customerId).get();
+          DocumentSnapshot<Map<String, dynamic>>? tailorSnap;
+          if (o.tailorId != null && o.tailorId!.isNotEmpty) {
+            tailorSnap = await _firestore.collection('tailor').doc(o.tailorId!).get();
+          }
+          final customerInfo = (customerSnap.exists && customerSnap.data()!=null)
+              ? CustomerInfo.fromJson(customerSnap.data() as Map<String,dynamic>)
+              : null;
+          final tailorInfo = (tailorSnap!=null && tailorSnap.exists && tailorSnap.data()!=null)
+              ? TailorInfo.fromJson(tailorSnap.data() as Map<String,dynamic>)
+              : null;
+          return o.copyWith(customer: customerInfo, tailor: tailorInfo);
+        }));
+      });
     });
   }
 
   Future<Map<String, int>> getCompletedKpis(String riderId) async {
     final col = _firestore.collection('order');
-    final snapshot = await col
+    final firstSnap = await col
         .where('rider_id', isEqualTo: riderId)
-        .where('status', whereIn: [3, 9])
+        .where('status', whereIn: [3])
         .get();
+    final returnSnap = await col
+        .where('drop_off_rider_id', isEqualTo: riderId)
+        .where('status', whereIn: [9])
+        .get();
+
+    final all = [
+      ...firstSnap.docs,
+      ...returnSnap.docs,
+    ];
 
     int total = 0;
     int today = 0;
@@ -240,7 +299,7 @@ class DriverOrderRepository {
     final startOfToday = DateTime(now.year, now.month, now.day);
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
 
-    for (final doc in snapshot.docs) {
+    for (final doc in all) {
       final data = doc.data();
       DateTime ts;
       final updated = data['updated_at'];
@@ -267,4 +326,3 @@ class DriverOrderRepository {
   }
 
 }
-

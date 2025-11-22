@@ -3,6 +3,7 @@ class OrderModel {
   final String customerId;
   final String? tailorId;
   final String? riderId;
+  final String? dropOffRiderId;
   final double totalPrice;
   int status;
   final String paymentMethod;
@@ -66,6 +67,7 @@ class OrderModel {
     required this.customerId,
     this.tailorId,
     this.riderId,
+    this.dropOffRiderId,
     required this.totalPrice,
     required this.status,
     required this.paymentMethod,
@@ -103,6 +105,7 @@ class OrderModel {
       customerId: json['customer_id']?.toString() ?? '',
       tailorId: json['tailor_id']?.toString(),
       riderId: json['rider_id']?.toString(),
+      dropOffRiderId: json['drop_off_rider_id']?.toString(),
       totalPrice: _parseDouble(json['total_price']),
       status: _parseInt(json['status']),
       paymentMethod: json['payment_method'] ?? '',
@@ -129,6 +132,7 @@ class OrderModel {
       'customer_id': customerId,
       'tailor_id': tailorId,
       'rider_id': riderId,
+      'drop_off_rider_id': dropOffRiderId,
       'total_price': totalPrice,
       'status': status,
       'payment_method': paymentMethod,
@@ -149,6 +153,7 @@ class OrderModel {
     String? customerId,
     String? tailorId,
     String? riderId,
+    String? dropOffRiderId,
     double? totalPrice,
     int? status,
     String? paymentMethod,
@@ -167,6 +172,7 @@ class OrderModel {
       customerId: customerId ?? this.customerId,
       tailorId: tailorId ?? this.tailorId,
       riderId: riderId ?? this.riderId,
+      dropOffRiderId: dropOffRiderId ?? this.dropOffRiderId,
       totalPrice: totalPrice ?? this.totalPrice,
       status: status ?? this.status,
       paymentMethod: paymentMethod ?? this.paymentMethod,

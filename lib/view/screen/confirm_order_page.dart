@@ -223,7 +223,7 @@ class _ConfirmOrderPageState extends State<ConfirmOrderPage> {
       riderId: null, // Status -1, no rider assigned yet
       pickupLocation: pickupLocation, // Customer's address
       dropoffLocation: dropoffLocation, // Tailor's address
-      paymentMethod: 'Cash',
+      paymentMethod: 'Online',
       paymentStatus: 'Pending',
       orderDetails: orderDetailsList,
       totalPrice: totalPrice.toDouble(),

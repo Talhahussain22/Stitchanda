@@ -277,8 +277,7 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                     child: Text(
                       item,
                       style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    ),
-                  );
+                    ));
                 }).toList(),
               ),
               const SizedBox(height: 12),
@@ -342,7 +341,7 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                   return const SizedBox.shrink();
                 }
                 final distanceKm = _calculateDistanceKm(pickup.latitude,pickup.longitude, drop.latitude, drop.longitude);
-                final riderPrice = (distanceKm * 30).ceil();
+                final riderPrice = (distanceKm * 50).ceil();
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
@@ -410,8 +409,7 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
               _buildOrderActions(context, order, accent),
             ],
           ),
-        ),
-      ));
+        )));
   }
 
   double _calculateDistanceKm(double lat1, double lon1, double lat2, double lon2) {
@@ -462,12 +460,17 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
     final customerId = context.read<AuthCubit>().currentCustomer?.customerId;
     if (customerId == null) return const SizedBox.shrink();
 
-    // For status 1 or 3 (Assigned to Rider): show rider details button
-    if (order.status == 1 && order.riderId != null && order.riderId!.isNotEmpty) {
+    // For status 1 (first leg assigned) or second leg assigned statuses (6,7) show rider details button
+    final activeRiderId = order.activeRiderId;
+    final shouldShowRiderButton = (
+      (order.status == 1 && activeRiderId != null && activeRiderId.isNotEmpty) ||
+      ((order.status >= 6 && order.status <= 8) && activeRiderId != null && activeRiderId.isNotEmpty)
+    );
+    if (shouldShowRiderButton) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _showRiderDetails(order.riderId!, accent, order),
+          onPressed: () => _showRiderDetails(activeRiderId!, accent, order),
           style: ElevatedButton.styleFrom(
             backgroundColor: accent,
             foregroundColor: Colors.white,
@@ -475,7 +478,7 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
           icon: const Icon(Icons.two_wheeler),
-          label: const Text('See Ride Details', style: TextStyle(fontWeight: FontWeight.w600)),
+          label: Text(order.isSecondLeg ? 'See Return Ride Details' : 'See Ride Details', style: const TextStyle(fontWeight: FontWeight.w600)),
         ),
       );
     }
@@ -980,9 +983,9 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                   const SizedBox(height: 20),
 
                   // Title
-                  const Text(
-                    'Ride Details',
-                    style: TextStyle(
+                  Text(
+                    order.isSecondLeg ? 'Return Ride Details' : 'Ride Details',
+                    style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1014,7 +1017,7 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Your Rider',
+                          order.isSecondLeg ? 'Return Rider' : 'Your Rider',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -1025,7 +1028,6 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: 24),
 
-                  // ETA and Distance Information
                   if (distanceKm != null && etaMinutes != null) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -1100,55 +1102,11 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                     const SizedBox(height: 20),
                   ],
 
-                  // Vehicle Information (if available)
-                  // if (rider.vehicleNumber != null && rider.vehicleNumber!.isNotEmpty) ...[
-                  //   Container(
-                  //     padding: const EdgeInsets.all(16),
-                  //     decoration: BoxDecoration(
-                  //       color: Colors.grey[50],
-                  //       borderRadius: BorderRadius.circular(12),
-                  //       border: Border.all(color: Colors.grey[200]!),
-                  //     ),
-                  //     child: Row(
-                  //       children: [
-                  //         Icon(Icons.motorcycle, size: 30, color: accent),
-                  //         const SizedBox(width: 12),
-                  //         Expanded(
-                  //           child: Column(
-                  //             crossAxisAlignment: CrossAxisAlignment.start,
-                  //             children: [
-                  //               Text(
-                  //                 'Vehicle Number',
-                  //                 style: TextStyle(
-                  //                   fontSize: 12,
-                  //                   color: Colors.grey[600],
-                  //                 ),
-                  //               ),
-                  //               const SizedBox(height: 4),
-                  //               Text(
-                  //                 rider.vehicleNumber!,
-                  //                 style: const TextStyle(
-                  //                   fontSize: 16,
-                  //                   fontWeight: FontWeight.bold,
-                  //                   color: Colors.black87,
-                  //                 ),
-                  //               ),
-                  //             ],
-                  //           ),
-                  //         ),
-                  //       ],
-                  //     ),
-                  //   ),
-                  //   const SizedBox(height: 20),
-                  // ],
-
-                  // Action Buttons (Chat and Call)
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () async {
-                            // Get current customer ID
                             final customerId = context.read<AuthCubit>().currentCustomer?.customerId;
                             if (customerId == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -1158,15 +1116,13 @@ class _OrdersPageState extends State<OrdersPage> with SingleTickerProviderStateM
                             }
 
                             try {
-                              // Start or get existing conversation with rider
                               final conversation = await context.read<ChatCubit>().startConversation(
                                 customerId,
                                 rider.riderId,
                               );
 
-                              // Navigate to chat screen
                               if (!mounted) return;
-                              Navigator.pop(modalContext); // Close rider details modal
+                              Navigator.pop(modalContext);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (ctx) => ChatScreen(conversation: conversation),

@@ -39,7 +39,8 @@ class OrderModel {
   final String orderId;
   final String customerId;
   final String tailorId;
-  final String? riderId; // null when just created
+  final String? riderId; // first leg rider (customer -> tailor)
+  final String? dropOffRiderId; // second leg rider (tailor -> customer)
   final Location? pickupLocation;
   final Location? dropoffLocation;
   final String paymentMethod;
@@ -56,6 +57,7 @@ class OrderModel {
     required this.customerId,
     required this.tailorId,
     this.riderId,
+    this.dropOffRiderId,
     this.pickupLocation,
     this.dropoffLocation,
     required this.paymentMethod,
@@ -71,12 +73,16 @@ class OrderModel {
   // Helpers
   List<String> get items => orderDetails.map((d) => d.itemType).toList();
   int get itemCount => orderDetails.length;
+  // Determine which rider is active based on status range.
+  // Status 0..5 use riderId, 6+ use dropOffRiderId.
+  String? get activeRiderId => (status >= 0 && status <= 5) ? riderId : dropOffRiderId;
+  bool get isSecondLeg => status >= 6;
   String get statusLabel {
     switch (status) {
       case -3:
         return 'Rejected (By Tailor)';
       case -2:
-        return 'Awaiting for Tailor''s Approval';
+        return 'Awaiting for Tailor\'s Approval';
       case -1:
         return 'Accepted (By Tailor)';
       case 0:
@@ -156,6 +162,7 @@ class OrderModel {
       customerId: (json['customer_id'] ?? json['customerId'] ?? '').toString(),
       tailorId: (json['tailor_id'] ?? json['tailorId'] ?? '').toString(),
       riderId: (json['rider_id'] ?? json['riderId'])?.toString(),
+      dropOffRiderId: (json['drop_off_rider_id'] ?? json['dropOffRiderId'])?.toString(),
       pickupLocation: pickup,
       dropoffLocation: dropoff,
       paymentMethod: (json['payment_method'] ?? json['paymentMethod'] ?? '').toString(),
@@ -176,6 +183,7 @@ class OrderModel {
         'customer_id': customerId,
         'tailor_id': tailorId,
         'rider_id': riderId,
+        'drop_off_rider_id': dropOffRiderId,
         'pickup_location': pickupLocation?.toJson(),
         'dropoff_location': dropoffLocation?.toJson(),
         'payment_method': paymentMethod,
@@ -193,6 +201,7 @@ class OrderModel {
     String? customerId,
     String? tailorId,
     String? riderId,
+    String? dropOffRiderId,
     Location? pickupLocation,
     Location? dropoffLocation,
     String? paymentMethod,
@@ -208,6 +217,7 @@ class OrderModel {
         customerId: customerId ?? this.customerId,
         tailorId: tailorId ?? this.tailorId,
         riderId: riderId ?? this.riderId,
+        dropOffRiderId: dropOffRiderId ?? this.dropOffRiderId,
         pickupLocation: pickupLocation ?? this.pickupLocation,
         dropoffLocation: dropoffLocation ?? this.dropoffLocation,
         paymentMethod: paymentMethod ?? this.paymentMethod,

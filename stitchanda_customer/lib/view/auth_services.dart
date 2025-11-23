@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../controller/auth_cubit.dart';
 import 'screen/login_page.dart';
+import 'screen/email_verification_page.dart';
 import 'base/bottom_nav_scaffold.dart';
 
 /// AuthServices acts as a simple session gate.
@@ -25,6 +26,11 @@ class AuthServices extends StatelessWidget {
         if (state is AuthAuthenticated) {
           // Go straight to home shell
           return const BottomNavScaffold(initialIndex: 2);
+        }
+
+        if (state is AuthEmailNotVerified) {
+          // User exists but email not verified - show verification page
+          return EmailVerificationPage(email: state.email);
         }
 
         // Unauthenticated or error -> Login page

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../controller/auth_cubit.dart';
 import '../base/bottom_nav_scaffold.dart';
+import 'login_page.dart';
 
 class EmailVerificationPage extends StatefulWidget {
   final String email;
@@ -295,7 +296,10 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                   onPressed: () {
                     // Logout and go back to login
                     context.read<AuthCubit>().logout();
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                      (route) => false,
+                    );
                   },
                   child: Text(
                     'Back to Login',

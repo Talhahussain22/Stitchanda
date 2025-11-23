@@ -94,14 +94,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
         foregroundColor: Colors.black87,
         elevation: 0,
         actions: [
-          TextButton(
-            onPressed: _isLoading ? null : _handleSave,
-            child: Text(
-              'Save',
-              style: TextStyle(
-                color: _isLoading ? Colors.grey : accent,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
+          Padding(
+            padding: const EdgeInsets.only(right: 24.0),
+            child: TextButton(
+              onPressed: _isLoading ? null : _handleSave,
+              child: Text(
+                'Save',
+                style: TextStyle(
+                  color: _isLoading ? Colors.grey : accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),

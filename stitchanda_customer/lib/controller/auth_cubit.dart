@@ -55,6 +55,23 @@ class AuthCubit extends Cubit<AuthState> {
   // Check if user is already logged in
   Future<void> _checkAuthStatus() async {
     try {
+      // Check if there's a Firebase user first
+      final firebaseUser = _authRepository.currentUser;
+
+      if (firebaseUser != null) {
+        // Reload to get latest email verification status
+        await firebaseUser.reload();
+        final refreshedUser = _authRepository.currentUser;
+
+        // Check if email is verified
+        if (refreshedUser != null && !refreshedUser.emailVerified) {
+          print('📧 AuthCubit: User exists but email not verified');
+          emit(AuthEmailNotVerified(refreshedUser.email ?? ''));
+          return;
+        }
+      }
+
+      // Try to get customer profile (will be null if email not verified)
       final customer = await _authRepository.getCurrentCustomer();
       if (customer != null) {
         emit(AuthAuthenticated(customer));

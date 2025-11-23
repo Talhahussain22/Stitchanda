@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:stichanda_tailor/data/models/order_detail_model.dart';
+import 'package:stichanda_tailor/data/repository/customer_repo.dart';
 
 /// Repository managing tailor-facing order flows using Firestore.
 /// Schema reference:
@@ -12,11 +13,17 @@ import 'package:stichanda_tailor/data/models/order_detail_model.dart';
 class OrderRepo {
   // Firestore collections (names per user spec; ensure they match actual Firebase setup)
   final CollectionReference _ordersCol = FirebaseFirestore.instance.collection('order');
-  final CollectionReference _orderDetailsCol = FirebaseFirestore.instance.collection('orderDetail');
+  final CustomerRepo _customerRepo;
+
+  OrderRepo({CustomerRepo? customerRepo})
+      : _customerRepo = customerRepo ?? CustomerRepo();
+
+  // Helper to get order_details collection - using direct instance to avoid reference issues
+  CollectionReference get _orderDetailsCol => FirebaseFirestore.instance.collection('order_details');
 
   // ==================== STATUS CONSTANTS ====================
-  static const int STATUS_UNACCEPTED = -2; // tailor must decide
   static const int STATUS_REJECTED = -3;   // tailor rejected
+  static const int STATUS_UNACCEPTED = -2; // pending tailor action
   static const int STATUS_ACCEPTED = -1;   // tailor accepted
   static const int STATUS_UNASSIGNED = 0;  // customer side
   static const int STATUS_RIDER_ASSIGNED_CUSTOMER = 1;
@@ -175,6 +182,20 @@ class OrderRepo {
     });
   }
 
+  /// Stream orders for tailor with customer names enriched
+  Stream<List<Map<String, dynamic>>> streamOrdersForTailorWithCustomerNames(
+    String tailorId,
+    {List<int>? statuses}
+  ) async* {
+    await for (final orders in streamOrdersForTailor(tailorId, statuses: statuses)) {
+      final enrichedOrders = <Map<String, dynamic>>[];
+      for (final order in orders) {
+        enrichedOrders.add(await enrichOrderWithCustomerName(order));
+      }
+      yield enrichedOrders;
+    }
+  }
+
   Stream<List<Map<String, dynamic>>> streamOrderDetails(String orderId) {
     return _orderDetailsCol
         .where('order_id', isEqualTo: orderId)
@@ -196,9 +217,11 @@ class OrderRepo {
 
   Map<String, dynamic> _orderDocToMap(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    // Use the order_id from the document data if it exists, otherwise use document ID
+    final orderId = data['order_id'] as String? ?? doc.id;
     return {
       ...data,
-      'order_id': doc.id, // ensure order_id present even if stored differently
+      'order_id': orderId,
     };
   }
 
@@ -257,4 +280,69 @@ class OrderRepo {
   }
 
   DateTime _timestampToDate(Timestamp? ts) => ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Enrich a single order with customer name and earliest delivery date
+  Future<Map<String, dynamic>> enrichOrderWithCustomerName(Map<String, dynamic> order) async {
+    final customerId = order['customer_id'] as String?;
+    if (customerId != null && customerId.isNotEmpty) {
+      final customerName = await _customerRepo.getCustomerName(customerId);
+      if (customerName != null) {
+        order['customer_name'] = customerName;
+      }
+    }
+
+    // If delivery_date already present on order doc (Timestamp), keep it. Otherwise derive from order_details due_data.
+    if (order['delivery_date'] == null) {
+      final orderId = order['order_id'] as String?;
+      if (orderId != null && orderId.isNotEmpty) {
+        try {
+          final detailsSnap = await _orderDetailsCol.where('order_id', isEqualTo: orderId).get();
+
+          String? earliestDueDateStr;
+          DateTime? earliestDateTime;
+
+            for (final doc in detailsSnap.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              final dueData = data['due_data'] as String?; // still stored as due_data in order_details
+              if (dueData != null && dueData.isNotEmpty) {
+                try {
+                  final dt = DateTime.parse(dueData);
+                  if (earliestDateTime == null || dt.isBefore(earliestDateTime)) {
+                    earliestDateTime = dt;
+                    earliestDueDateStr = dueData;
+                  }
+                } catch (_) {}
+              }
+            }
+
+          if (earliestDateTime != null) {
+            // Store as ISO string if we derived it (since we don't have server Timestamp here)
+            order['delivery_date'] = earliestDueDateStr;
+          }
+        } catch (_) {
+          // ignore enrichment failure
+        }
+      }
+    }
+
+    return order;
+  }
+
+  /// Enrich multiple orders with customer names
+  Future<List<Map<String, dynamic>>> enrichOrdersWithCustomerNames(List<Map<String, dynamic>> orders) async {
+    final enrichedOrders = <Map<String, dynamic>>[];
+    for (final order in orders) {
+      enrichedOrders.add(await enrichOrderWithCustomerName(order));
+    }
+    return enrichedOrders;
+  }
+
+  /// Fetch all orders for a tailor with customer names enriched
+  Future<List<Map<String, dynamic>>> fetchOrdersForTailorWithCustomerNames(
+    String tailorId,
+    {List<int>? statuses}
+  ) async {
+    final orders = await fetchOrdersForTailor(tailorId, statuses: statuses);
+    return await enrichOrdersWithCustomerNames(orders);
+  }
 }

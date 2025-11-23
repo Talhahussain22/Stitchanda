@@ -116,10 +116,19 @@ class AuthRepository {
     }
   }
 
-  // Get current logged-in customer (null if none)
+  // Get current logged-in customer (null if none or email not verified)
   Future<CustomerModel?> getCurrentCustomer() async {
     final user = _auth.currentUser;
     if (user != null) {
+      // Reload user to get latest email verification status
+      await user.reload();
+      final refreshedUser = _auth.currentUser;
+
+      // Check if email is verified
+      if (refreshedUser != null && !refreshedUser.emailVerified) {
+        return null; // Don't return customer if email not verified
+      }
+
       try {
         final doc = await _firestore.collection('customer').doc(user.uid).get();
         if (!doc.exists) return null;

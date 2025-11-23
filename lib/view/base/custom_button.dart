@@ -40,8 +40,10 @@ class CustomButton extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
 
       children: [
-        icon != null ? Icon(icon, color: transparent ? Theme.of(context).primaryColor : Theme.of(context).cardColor) : const SizedBox(),
-        SizedBox(width: icon != null ? Dimensions.paddingSizeSmall : 0),
+      if(icon != null)...[
+        Icon(icon, color: transparent ? Theme.of(context).primaryColor : Theme.of(context).cardColor) ,
+        SizedBox(width:Dimensions.paddingSizeSmall ),
+        ],
         Text(
           buttonText,
           textAlign: TextAlign.center,

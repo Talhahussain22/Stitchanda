@@ -29,6 +29,16 @@ dependencies:
   shared_preferences: ^2.5.3
   supabase_flutter: ^2.10.3
 
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+
 flutter:
 
   uses-material-design: true

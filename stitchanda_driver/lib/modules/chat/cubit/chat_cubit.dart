@@ -85,26 +85,27 @@ class ChatCubit extends Cubit<ChatState> {
     final c = await _firestore.collection('customer').doc(uid).get();
     if (c.exists) {
       final data = c.data() as Map<String, dynamic>;
-      final p = (data['profile_image_path']?.toString() ?? '').trim();
+      final p = (data['profileImagePath']?.toString() ?? '').trim();
+
       return {
         'name': (data['name']?.toString() ),
         'imageUrl': p.isNotEmpty ? p : null,
       };
     }
+
     // tailor
     final t = await _firestore.collection('tailor').doc(uid).get();
     if (t.exists) {
       final data = t.data() as Map<String, dynamic>;
-      final p = (data['profile_image_path']?.toString() ?? '').trim();
+      final p = (data['image_path']?.toString() ?? '').trim();
       return {
         'name': (data['name']?.toString()),
         'imageUrl': p.isNotEmpty ? p : null,
       };
     }
-
-    final admin = await _firestore.collection('admin').doc(uid).get();
-    if (admin.exists) {
-      final data = admin.data() as Map<String, dynamic>;
+    final a= await _firestore.collection('admin').doc(uid).get();
+    if (a.exists) {
+      final data = a.data() as Map<String, dynamic>;
       final p = (data['profile_image_path']?.toString() ?? '').trim();
       return {
         'name': (data['username']?.toString()),

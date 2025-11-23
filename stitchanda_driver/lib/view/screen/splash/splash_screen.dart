@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void _navigateOnce(Widget page, {Duration? delay}) {
     if (_navigated || !mounted) return;
     _navigated = true;
-    final d = delay ?? const Duration(milliseconds: 2500);
+    final d = const Duration(milliseconds: 2500);
     Future.delayed(d, () {
       Navigator.pushAndRemoveUntil(
         context,

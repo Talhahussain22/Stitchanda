@@ -267,15 +267,18 @@ class OrderCubit extends Cubit<OrderState> {
           ? state.selectedOrder!.copyWith(status: newStatus)
           : state.selectedOrder;
 
-      final updatedCurrent = (state.currentOrder != null && state.currentOrder!.orderId == orderId)
+      OrderModel? updatedCurrent = (state.currentOrder != null && state.currentOrder!.orderId == orderId)
           ? state.currentOrder!.copyWith(status: newStatus)
           : state.currentOrder;
 
+      // If order reached a completion status, clear currentOrder so Home screen no longer shows it
+      final bool isCompletion = newStatus == 3 || newStatus == 9 || newStatus == 10;
       emit(state.copyWith(
         isLoading: false,
         orders: updatedOrders,
         selectedOrder: updatedSelected,
         currentOrder: updatedCurrent,
+        clearCurrentOrder: isCompletion,
       ));
     } on FirebaseAuthException catch (e) {
       emit(state.copyWith(
@@ -296,15 +299,13 @@ class OrderCubit extends Cubit<OrderState> {
       final updatedOrders = state.orders.map((o) =>
           o.orderId == sel.orderId ? o.copyWith(status: completionStatus) : o).toList();
       final updatedSelected = sel.copyWith(status: completionStatus);
-      final updatedCurrent = (state.currentOrder != null && state.currentOrder!.orderId == sel.orderId)
-          ? null
-          : state.currentOrder;
 
+      // Always clear current order when completion occurs
       emit(state.copyWith(
         isLoading: false,
         orders: updatedOrders,
         selectedOrder: updatedSelected,
-        currentOrder: updatedCurrent,
+        clearCurrentOrder: true,
       ));
     } on FirebaseAuthException catch (e) {
       emit(state.copyWith(

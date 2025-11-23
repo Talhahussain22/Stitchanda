@@ -37,6 +37,8 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
         SnackBar(content: Text('Order marked as ${order.copyWith(status: next).statusLabel}'))
       );
       Navigator.of(context).pop(true);
+
+
     } else {
       orderCubit.updateOrderStatus(order.orderId, next);
       if (!mounted) return;
@@ -47,9 +49,7 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
   }
 
   int? _nextStatus(int currentStatus) {
-    // Status progression (driver-side only):
-    // 0 → 1 → 2 → 3 (Customer to Tailor delivery; 3 is completion by driver)
-    // 6 → 7 → 8 → 9 (Tailor to Customer delivery; 9 is completion by driver)
+
     switch (currentStatus) {
       case 1: return 2; // Assigned → Picked up from Customer
       case 2: return 3; // Picked up → Delivered to Tailor (driver completes first leg)

@@ -36,7 +36,6 @@ class _HomeScreenUIState extends State<HomeScreenUI> {
     return BlocBuilder<OrderCubit, OrderState>(
       builder: (context, state) {
         final bool hasActiveOrder = state.currentOrder != null;
-
         return Scaffold(
           appBar: HomepageAppBar(),
           body: SingleChildScrollView(

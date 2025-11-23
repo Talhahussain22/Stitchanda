@@ -40,7 +40,7 @@ class OrderRepository {
         'payment_status': paymentStatus,
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
-        'delivery_date': null,
+        'delivery_date': Timestamp.fromDate(due_date),
       };
 
 

@@ -1,9 +1,33 @@
 import Stripe from 'stripe';
 
-const stripe = new Stripe(import.meta.env.VITE_STRIPE_SECRET_KEY);
+const stripeKey = import.meta.env.VITE_STRIPE_SECRET_KEY;
+
+// No key yet: the functions below return empty data instead of calling Stripe
+export const isStripeConfigured = Boolean(stripeKey);
+
+let stripeClient = null;
+
+const getStripe = () => {
+  if (!stripeClient) {
+    stripeClient = new Stripe(stripeKey);
+  }
+  return stripeClient;
+};
+
+const EMPTY_STATISTICS = {
+  totalRevenue: 0,
+  refundedAmount: 0,
+  netRevenue: 0,
+  totalTransactions: 0,
+  successfulPayments: 0,
+  failedPayments: 0,
+  pendingPayments: 0,
+};
 
 export const getStripeBalance = async () => {
+  if (!isStripeConfigured) return null;
   try {
+    const stripe = getStripe();
     const balance = await stripe.balance.retrieve();
     return balance;
   } catch (error) {
@@ -14,7 +38,9 @@ export const getStripeBalance = async () => {
 
 
 export const getStripePayments = async (limit = 100) => {
+  if (!isStripeConfigured) return [];
   try {
+    const stripe = getStripe();
     const charges = await stripe.charges.list({
       limit: limit,
     });
@@ -39,7 +65,9 @@ export const getStripePayments = async (limit = 100) => {
 };
 
 export const getTotalRevenue = async () => {
+  if (!isStripeConfigured) return 0;
   try {
+    const stripe = getStripe();
     let totalRevenue = 0;
     let hasMore = true;
     let startingAfter = null;
@@ -72,7 +100,9 @@ export const getTotalRevenue = async () => {
 };
 
 export const getPaymentStatistics = async () => {
+  if (!isStripeConfigured) return { ...EMPTY_STATISTICS };
   try {
+    const stripe = getStripe();
     const charges = await stripe.charges.list({ limit: 100 });
 
     let totalRevenue = 0;
@@ -113,7 +143,9 @@ export const getPaymentStatistics = async () => {
 
 
 export const getPaymentById = async (chargeId) => {
+  if (!isStripeConfigured) return null;
   try {
+    const stripe = getStripe();
     const charge = await stripe.charges.retrieve(chargeId);
     return {
       id: charge.id,
